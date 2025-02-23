@@ -1,5 +1,5 @@
 import numpy as np
-from utils import sym_tridiagonal_inverse, denoise_wavelet_ti
+from utils import sym_tridiagonal_inverse, denoise_wavelet_ti,trend_filter
 from skimage.restoration import estimate_sigma
 from scipy.linalg import solveh_banded
 
@@ -178,7 +178,9 @@ class VEBTF_sparse:
         if type(mu_init) == str:
             if mu_init == 'wavelet':
                 mu_init = denoise_wavelet_ti(self.y,num_shifts=1)
-                # create some sparsity in mu_init
+                mu_init[np.abs(mu_init)<self.sparse_threshold] = 0
+            elif mu_init == 'lasso':
+                mu_init = trend_filter(self.y)
                 mu_init[np.abs(mu_init)<self.sparse_threshold] = 0
             elif mu_init == 'const':
                 mu_init = np.ones(self.n)*np.mean(self.y)

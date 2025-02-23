@@ -6,6 +6,28 @@ import rpy2.robjects as ro
 from rpy2.robjects import numpy2ri
 from rpy2.robjects.packages import importr
 import timeit
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, WhiteKernel
+
+class mean_predictor:
+    def __init__(self):
+        self.model_name = "mean_predictor"
+
+    def fit(self, y):
+        """
+        Apply the mean predictor to a given array y.
+
+        Parameters:
+        - y: NumPy array containing the input data.
+
+        Returns:
+        - fit_mean: NumPy array containing the mean of y.
+        """
+        start_time = timeit.default_timer()
+        fit_mean = np.mean(y) * np.ones_like(y)
+        self.mu = fit_mean
+        self.run_time = timeit.default_timer() - start_time
+        #return fit_mean
 
 class wavelet_denoise:
     def __init__(self, wavelet='haar', mode='hard', wavelet_levels=None, method='VisuShrink',num_shifts=1,sigma=None):
@@ -84,6 +106,64 @@ class genlasso_tf:
         self.run_time = timeit.default_timer() - start_time
         #return fit_tf.squeeze()
 
+class GP_sklearn:
+    def __init__(self, kernel='RBF'):
+        self.kernel = kernel
+        self.model_name = f"GP_{kernel}"
+
+    def fit(self, y):
+        """
+        Apply Gaussian Process regression to a given array y with specified kernel.
+
+        Parameters:
+        - y: NumPy array containing the input data.
+        - kernel: Kernel type for the Gaussian Process (default is 'RBF').
+
+        Returns:
+        - fit_gp: NumPy array containing the Gaussian Process regression output.
+        """
+        start_time = timeit.default_timer()
+        n = len(y)
+        X = np.arange(n).reshape(-1, 1)
+        if self.kernel == 'RBF':
+            kernel = 1 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e2)) + WhiteKernel(noise_level=1)
+        else:
+            raise ValueError("Unsupported kernel type.")
+        
+        gp = GaussianProcessRegressor(kernel=kernel)
+        gp.fit(X, y)
+        fit_gp = gp.predict(X)
+        self.mu=fit_gp.squeeze()
+        self.fitted_model = gp
+        self.run_time = timeit.default_timer() - start_time
+
+class btf:
+    def __init__(self,ord=0,prior='DHS',verbose=False):
+        self.ord = ord
+        self.prior = prior
+        self.verbose = verbose
+        self.model_name = f"btf{ord}"
+
+    def fit(self, y):
+        """
+        Apply Bayesian trend filtering to a given array y with specified order ord.
+
+        Parameters:
+        - y: NumPy array containing the input data.
+        - ord: Order of the trend filter (0 for piecewise constant, 1 for piecewise linear, etc.).
+
+        Returns:
+        - fit_tf: NumPy array containing the trend-filtered output.
+        """
+        start_time = timeit.default_timer()
+        numpy2ri.activate()
+        dsp = importr('dsp')
+        y_r = ro.FloatVector(y)
+        fit_tf = dsp.btf(y_r, D=self.ord, evol_error=self.prior, verbose=self.verbose)
+        mu_r = fit_tf.rx2('mu')
+        mu_np = np.array(mu_r)
+        self.mu=mu_np.mean(axis=0)
+        self.run_time = timeit.default_timer() - start_time
 
 class susie_tf:
     def __init__(self,L=10):

@@ -2,18 +2,18 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 current_dir = os.path.dirname(os.path.realpath(__file__))
-myPy_dir = os.path.abspath(os.path.join(current_dir, '..', '..'))
+myPy_dir = os.path.abspath(os.path.join(current_dir, '..', '..', '..'))
 sys.path.append(os.path.join(myPy_dir, 'VEBTF', 'src'))
 
 
 import numpy as np
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from util_func import generate_signals
 import timeit
 import argparse
 import pickle
 import pandas as pd
-from methods.methods import genlasso_tf, wavelet_denoise, susie_tf
+from methods.methods import genlasso_tf, wavelet_denoise, susie_tf, btf, GP_sklearn
 from vebtf import VEBTF
 
 def main(args):
@@ -22,46 +22,32 @@ def main(args):
     snr = args.snr
     n = args.n
     signal_name = args.signal_name
-    if signal_name is "blocks":
-        ebtf_model = VEBTF(verbose=False,tol=1e-5,point_mass_sd=np.sqrt(1/n)/3,num_shift_wavelet=100,prior='ash_update') 
-    elif signal_name is "step":
-        ebtf_model = VEBTF(verbose=False,tol=1e-5,point_mass_sd=np.sqrt(1/n)/3,num_shift_wavelet=100,prior='ash_update')
-    elif signal_name is "bumps":
-        ebtf_model = VEBTF(verbose=False,tol=1e-5,point_mass_sd=np.sqrt(1/n)/2,num_shift_wavelet=100,prior='ash_update') 
-    elif signal_name is "heavi":
-        ebtf_model = VEBTF(verbose=False,tol=1e-5,point_mass_sd=np.sqrt(1/n),num_shift_wavelet=1,prior='ash_update')
-    elif signal_name is "linear":
-        ebtf_model = VEBTF(verbose=False,tol=1e-5,point_mass_sd=np.sqrt(1/n),num_shift_wavelet=1,prior='ash_update') 
-    elif signal_name is "gauss":
-        ebtf_model = VEBTF(verbose=False,tol=1e-5,point_mass_sd=np.sqrt(1/n),num_shift_wavelet=1,prior='ash_update',method_wavelet='BayesShrink') 
-    models = [genlasso_tf(ord=0), 
-              wavelet_denoise(method='VisuShrink'),
-              wavelet_denoise(method='BayesShrink'),
-              susie_tf(L=10),
-              susie_tf(L=20),
-              ebtf_model]
-    metrics = [mean_squared_error, mean_absolute_error]
+
+    metrics = [mean_squared_error, mean_absolute_error, r2_score]
     # Generate the signal
     results = []
-    # datax = []
     fitted_models = []
     seed = 0
+    mu = generate_signals(n=n, signal_name=signal_name, snr=snr, sigma=sigma)
     for rep in range(repetitions):
-        print(f"running rep {rep} for signal {signal_name}")
+        print(f"running rep {rep} / {repetitions} for signal {signal_name}")
         start_t = timeit.default_timer()
-        mu = generate_signals(n=n, signal_name=signal_name, snr=snr, sigma=sigma)
         np.random.seed(seed)
         y = mu + sigma * np.random.randn(n)
-        # datax.append({
-        #     'n': n,
-        #     'signal_name': signal_name,
-        #     'snr': snr,
-        #     'rep': rep,
-        #     'mu': mu,
-        #     'y': y
-        # })
+        models = [
+                # genlasso_tf(ord=0), 
+                # wavelet_denoise(method='VisuShrink'),
+                # wavelet_denoise(method='BayesShrink'),
+                # susie_tf(L=10),
+                # susie_tf(L=20),
+                # susie_tf(L=30),
+                # choose_ebtf_model(signal_name,n),
+                # btf(ord=0,verbose=True),
+                GP_sklearn(kernel='RBF'),
+                ]
         for model in models:
             model_name = model.model_name
+            print(f"fitting {model_name} for rep {rep} / {repetitions} for signal {signal_name}")
             try:  
                 model.fit(y)
                 fitted_models.append({
@@ -88,6 +74,7 @@ def main(args):
                         'run_time': model.run_time,
                         'model': model_name
                     })
+                    print(f"metric: {metric.__name__}, score: {score}")
             except Exception as e:
                 print(e)
                 continue
@@ -101,6 +88,21 @@ def main(args):
             pickle.dump(results, fp)
     return results
 
+def choose_ebtf_model(signal_name,n):
+    if signal_name == "blocks":
+        ebtf_model = VEBTF(verbose=False,tol=1e-5,point_mass_sd=np.sqrt(1/n)/3,num_shift_wavelet=100,prior='ash_update') 
+    elif signal_name == "step":
+        ebtf_model = VEBTF(verbose=False,tol=1e-5,point_mass_sd=np.sqrt(1/n)/3,num_shift_wavelet=100,prior='ash_update')
+    elif signal_name == "bumps":
+        ebtf_model = VEBTF(verbose=False,tol=1e-5,point_mass_sd=np.sqrt(1/n)/2,num_shift_wavelet=100,prior='ash_update') 
+    elif signal_name == "heavi":
+        ebtf_model = VEBTF(verbose=False,tol=1e-5,point_mass_sd=np.sqrt(1/n),num_shift_wavelet=1,prior='ash_update')
+    elif signal_name == "linear":
+        ebtf_model = VEBTF(verbose=False,tol=1e-5,point_mass_sd=np.sqrt(1/n),num_shift_wavelet=1,prior='ash_update') 
+    elif signal_name == "gauss":
+        ebtf_model = VEBTF(verbose=False,tol=1e-5,point_mass_sd=np.sqrt(1/n),num_shift_wavelet=1,prior='ash_update',method_wavelet='BayesShrink') 
+    
+    return ebtf_model
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run simulation for VEBTF')

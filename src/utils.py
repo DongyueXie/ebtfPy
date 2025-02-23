@@ -1,6 +1,9 @@
 import numpy as np
 from skimage.restoration import denoise_wavelet, estimate_sigma
-
+import numpy as np
+import rpy2.robjects as ro
+from rpy2.robjects import numpy2ri
+from rpy2.robjects.packages import importr
 
 
 
@@ -78,11 +81,6 @@ def denoise_wavelet_ti(y, sigma=None, wavelet='haar', mode='soft',
 
     return denoised_y[0:n]
 
-
-import numpy as np
-import rpy2.robjects as ro
-from rpy2.robjects import numpy2ri
-from rpy2.robjects.packages import importr
 
 
 def trend_filter(y, ord=0):
