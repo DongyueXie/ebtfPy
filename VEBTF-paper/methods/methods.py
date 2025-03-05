@@ -7,7 +7,7 @@ from rpy2.robjects import numpy2ri
 from rpy2.robjects.packages import importr
 import timeit
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, WhiteKernel
+from sklearn.gaussian_process.kernels import RBF, WhiteKernel, ConstantKernel, Matern
 
 class mean_predictor:
     def __init__(self):
@@ -107,9 +107,10 @@ class genlasso_tf:
         #return fit_tf.squeeze()
 
 class GP_sklearn:
-    def __init__(self, kernel='RBF'):
+    def __init__(self, kernel="RBF", normalize_y_train=True):
         self.kernel = kernel
         self.model_name = f"GP_{kernel}"
+        self.normalize_y_train = normalize_y_train
 
     def fit(self, y):
         """
@@ -125,15 +126,32 @@ class GP_sklearn:
         start_time = timeit.default_timer()
         n = len(y)
         X = np.arange(n).reshape(-1, 1)
-        if self.kernel == 'RBF':
-            kernel = 1 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e2)) + WhiteKernel(noise_level=1)
+
+        # Normalize inputs
+        if self.normalize_y_train:
+            y_mu = y.mean()
+            y_std = y.std()
+        else:
+            y_mu = 0.0
+            y_std = 1.0
+
+        y_fit = (y - y_mu) / y_std
+
+        if self.kernel == "RBF":
+            kernel = ConstantKernel(1.0) * RBF(
+                length_scale=1.0, length_scale_bounds=(1e-2, 1e2)
+            ) + WhiteKernel(noise_level=1)
+        elif self.kernel == "Matern32":
+            kernel = ConstantKernel(1.0) * Matern(
+                length_scale=1.0, length_scale_bounds=(1e-2, 1e2)
+            ) + WhiteKernel(noise_level=1)
         else:
             raise ValueError("Unsupported kernel type.")
-        
+
         gp = GaussianProcessRegressor(kernel=kernel)
-        gp.fit(X, y)
+        gp.fit(X, y_fit)
         fit_gp = gp.predict(X)
-        self.mu=fit_gp.squeeze()
+        self.mu = fit_gp.squeeze() * y_std + y_mu
         self.fitted_model = gp
         self.run_time = timeit.default_timer() - start_time
 
@@ -142,7 +160,7 @@ class btf:
         self.ord = ord
         self.prior = prior
         self.verbose = verbose
-        self.model_name = f"btf{ord}"
+        self.model_name = f"btf{ord}_{prior}"
 
     def fit(self, y):
         """
