@@ -42,13 +42,19 @@ def main(args):
                 # susie_tf(L=20),
                 # susie_tf(L=30),
                 # choose_ebtf_model(signal_name,n),
-                # btf(ord=0,verbose=True),
-                GP_sklearn(kernel='RBF'),
+                btf(ord=1,prior='DHS',verbose=True),
+                #btf(ord=1,prior='HS',verbose=True),
+                #btf(ord=1,prior='NIG',verbose=True),
+                # GP_sklearn(kernel='Matern32'),
                 ]
         for model in models:
             model_name = model.model_name
             print(f"fitting {model_name} for rep {rep} / {repetitions} for signal {signal_name}")
-            try:  
+            try:
+                # if model_name == 'VEBTF-ash_update':
+                #     model.fit(y,mu_init = 'lasso')
+                # else:
+                #     model.fit(y)
                 model.fit(y)
                 fitted_models.append({
                     'n': n,

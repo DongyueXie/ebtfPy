@@ -26,7 +26,7 @@ def main(args):
     # Generate the signal
     results = []
     # read in data
-    data = pd.read_csv(f"~/VEBTF/VEBTF-paper/realdata/dataset/benchmark/{data_name}.csv")
+    data = pd.read_csv(os.path.expanduser(f"~/myPy/VEBTF/VEBTF-paper/realdata/dataset/benchmark/{data_name}.csv"))
     y = data['target'].values.squeeze()
     n = min(n, len(y))
     y = y[start_idx:(start_idx+n)]
